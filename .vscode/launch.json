@@ -1,0 +1,28 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Game2048Application",
+            "request": "launch",
+            "mainClass": "com.example.game2048.Game2048Application",
+            "projectName": "book_management"
+        },
+        {
+            "type": "java",
+            "name": "BookManagementApplication",
+            "request": "launch",
+            "mainClass": "BookManagementApplication",
+            "projectName": "book_management"
+        },
+        {
+            "type": "java",
+            "name": "Spring Boot-BookManagementApplication<book_management>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.example.book_management.BookManagementApplication",
+            "projectName": "book_management",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        }
+    ]
+}
