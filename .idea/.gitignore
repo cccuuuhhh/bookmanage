@@ -1,3 +1,14 @@
 # 默认忽略的文件
 /shelf/
 /workspace.xml
+**/target/
+**/bin/
+**/obj/
+**/node_modules/
+**/bower_components/
+**/dist/
+**/logs/
+**/temp/
+**/build/
+**/release/
+**/cache/
