@@ -7,6 +7,9 @@ import com.example.book_management.mapper.PromotionMapper;
 import com.example.book_management.vo.PromotionVO;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CachePut;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +28,7 @@ public class PromotionService extends ServiceImpl<PromotionMapper, Promotion> {
     @Autowired
     private BookService bookService;
     
+    @Cacheable(value = "promotions", key = "'all'")
     public List<PromotionVO> listPromotions() {
         List<Promotion> promotions = list();
         return promotions.stream().map(promotion -> {
@@ -38,6 +42,8 @@ public class PromotionService extends ServiceImpl<PromotionMapper, Promotion> {
     }
     
     @Transactional(rollbackFor = Exception.class)
+    @CachePut(value = "promotion", key = "#promotion.id")
+    @CacheEvict(value = "promotions", allEntries = true)
     public void savePromotion(Promotion promotion) {
         // 验证图书是否存在
         Book book = bookService.getById(promotion.getBookId());
@@ -77,6 +83,7 @@ public class PromotionService extends ServiceImpl<PromotionMapper, Promotion> {
      * @param currentTime 当前时间
      * @return 促销信息，如果没有则返回null
      */
+    @Cacheable(value = "promotion", key = "#bookId + ':' + #currentTime")
     public Promotion getCurrentPromotion(Long bookId, String currentTime) {
         return lambdaQuery()
             .eq(Promotion::getBookId, bookId)
@@ -85,5 +92,10 @@ public class PromotionService extends ServiceImpl<PromotionMapper, Promotion> {
             .orderByDesc(Promotion::getDiscount)
             .last("LIMIT 1")
             .one();
+    }
+    
+    @CacheEvict(value = {"promotion", "promotions"}, allEntries = true)
+    public boolean removeById(Long id) {
+        return super.removeById(id);
     }
 } 

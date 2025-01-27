@@ -25,16 +25,38 @@ spring:
       idle-timeout: 300000
       connection-timeout: 20000
   
+  # Redis配置
+  redis:
+    host: localhost
+    port: 6379
+    database: 0
+    timeout: 10000
+    lettuce:
+      pool:
+        max-active: 8
+        max-wait: -1
+        max-idle: 8
+        min-idle: 0
+  
+  # 缓存配置
+  cache:
+    type: redis
+    redis:
+      time-to-live: 3600000  # 缓存过期时间1小时
+      cache-null-values: true # 是否缓存空值
+      use-key-prefix: true   # 是否使用前缀
+      key-prefix: "book:"    # 缓存key的前缀
+  
   # JSON配置
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
     time-zone: GMT+8
-    default-property-inclusion: non_null
+    default-property-inclusion: NON_NULL
   
   # MVC配置
   mvc:
     pathmatch:
-      matching-strategy: ant_path_matcher
+      matching-strategy: ANT_PATH_MATCHER
   devtools:
     restart:
       enabled: true

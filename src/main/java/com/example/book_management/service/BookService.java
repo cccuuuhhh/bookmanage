@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.CacheEvict;
+import org.apache.poi.ss.usermodel.*;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
 import com.example.book_management.vo.BookVO;
 import com.example.book_management.entity.Promotion;
 import org.apache.poi.ss.usermodel.IndexedColors;
+import org.springframework.cache.annotation.CachePut;
 
 /**
  * 图书服务类
@@ -77,6 +79,7 @@ public class BookService extends ServiceImpl<BookMapper, Book> {
      */
     @Transactional(rollbackFor = Exception.class)
     @CacheEvict(value = "books", allEntries = true) // 清除所有图书缓存
+    @CachePut(value = "book", key = "#book.id")
     public void saveBook(Book book) {
         if (book.getId() == null) {
             book.setCreateTime(LocalDateTime.now().format(DATE_FORMATTER));
@@ -95,54 +98,46 @@ public class BookService extends ServiceImpl<BookMapper, Book> {
      * @throws IOException 导出异常时抛出
      */
     public byte[] exportToExcel() throws IOException {
-        XSSFWorkbook workbook = new XSSFWorkbook();
-        var sheet = workbook.createSheet("图书列表");
+        List<Book> books = list();
         
-        // 创建表头
-        var headerRow = sheet.createRow(0);
-        headerRow.createCell(0).setCellValue("ID");
-        headerRow.createCell(1).setCellValue("书名");
-        headerRow.createCell(2).setCellValue("作者");
-        headerRow.createCell(3).setCellValue("价格");
-        headerRow.createCell(4).setCellValue("折扣价");
-        headerRow.createCell(5).setCellValue("ISBN");
-        
-        // 创建红色字体样式
-        var font = workbook.createFont();
-        font.setColor(IndexedColors.RED.getIndex());
-        var redStyle = workbook.createCellStyle();
-        redStyle.setFont(font);
-        
-        // 获取当前时间
-        String now = LocalDateTime.now().format(DATE_FORMATTER);
-        
-        // 填充数据
-        var books = list();
-        for (int i = 0; i < books.size(); i++) {
-            var book = books.get(i);
-            var row = sheet.createRow(i + 1);
-            row.createCell(0).setCellValue(book.getId());
-            row.createCell(1).setCellValue(book.getName());
-            row.createCell(2).setCellValue(book.getAuthor());
-            row.createCell(3).setCellValue(book.getPrice().doubleValue());
+        try (Workbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("图书列表");
             
-            // 计算并设置折扣价
-            var discountPriceCell = row.createCell(4);
-            Promotion promotion = promotionService.getCurrentPromotion(book.getId(), now); // 传递bookId和当前时间
-            if (promotion != null && promotion.getDiscount() != null) {
-                double discountPrice = book.getPrice().doubleValue() * promotion.getDiscount().doubleValue();
-                discountPriceCell.setCellValue(discountPrice);
-                discountPriceCell.setCellStyle(redStyle);
-            } else {
-                discountPriceCell.setCellValue("无折扣");
+            // 创建标题行
+            Row headerRow = sheet.createRow(0);
+            headerRow.createCell(0).setCellValue("ID");
+            headerRow.createCell(1).setCellValue("书名");
+            headerRow.createCell(2).setCellValue("作者");
+            headerRow.createCell(3).setCellValue("价格");
+            headerRow.createCell(4).setCellValue("ISBN");
+            headerRow.createCell(5).setCellValue("库存");
+            headerRow.createCell(6).setCellValue("创建时间");
+            headerRow.createCell(7).setCellValue("更新时间");
+            
+            // 填充数据
+            int rowNum = 1;
+            for (Book book : books) {
+                Row row = sheet.createRow(rowNum++);
+                row.createCell(0).setCellValue(book.getId());
+                row.createCell(1).setCellValue(book.getName());
+                row.createCell(2).setCellValue(book.getAuthor());
+                row.createCell(3).setCellValue(book.getPrice().doubleValue());
+                row.createCell(4).setCellValue(book.getIsbn());
+                row.createCell(5).setCellValue(book.getStock());
+                row.createCell(6).setCellValue(book.getCreateTime());
+                row.createCell(7).setCellValue(book.getUpdateTime());
             }
             
-            row.createCell(5).setCellValue(book.getIsbn());
+            // 自动调整列宽
+            for (int i = 0; i < 8; i++) {
+                sheet.autoSizeColumn(i);
+            }
+            
+            // 将工作簿写入字节数组
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            workbook.write(outputStream);
+            return outputStream.toByteArray();
         }
-        
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        workbook.write(outputStream);
-        return outputStream.toByteArray();
     }
 
     /**
@@ -155,6 +150,7 @@ public class BookService extends ServiceImpl<BookMapper, Book> {
      * @param isbn ISBN号，支持模糊查询
      * @return 符合条件的图书列表
      */
+    @Cacheable(value = "books", key = "#name + #author + #minPrice + #maxPrice + #isbn")
     public List<Book> searchBooks(String name, String author, BigDecimal minPrice, BigDecimal maxPrice, String isbn) {
         LambdaQueryWrapper<Book> queryWrapper = new LambdaQueryWrapper<>();
         
