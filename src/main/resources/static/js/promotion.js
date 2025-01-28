@@ -8,6 +8,7 @@ const promotionApp = Vue.createApp({
                 id: null,
                 bookId: '',
                 discountPrice: '',
+                discount: '',
                 startTime: '',
                 endTime: '',
                 description: ''
@@ -26,7 +27,8 @@ const promotionApp = Vue.createApp({
                 ...promotion,
                 formattedStartTime: this.formatDateTime(promotion.startTime),
                 formattedEndTime: this.formatDateTime(promotion.endTime),
-                bookName: this.getBookName(promotion.bookId)
+                bookName: this.getBookName(promotion.bookId),
+                formattedDiscount: promotion.discount ? `${(promotion.discount * 100).toFixed(0)}%` : ''
             }));
         }
     },
@@ -103,12 +105,19 @@ const promotionApp = Vue.createApp({
 
             try {
                 this.loading = true;
+                // 转换日期时间格式
+                const promotionData = {
+                    ...this.currentPromotion,
+                    startTime: this.formatDateTimeForBackend(this.currentPromotion.startTime),
+                    endTime: this.formatDateTimeForBackend(this.currentPromotion.endTime)
+                };
+
                 const response = await this.fetchWithAuth('/promotions/save', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json;charset=UTF-8'
                     },
-                    body: JSON.stringify(this.currentPromotion)
+                    body: JSON.stringify(promotionData)
                 });
 
                 await this.handleResponse(response);
@@ -161,6 +170,12 @@ const promotionApp = Vue.createApp({
                 return false;
             }
 
+            const discount = parseFloat(this.currentPromotion.discount);
+            if (isNaN(discount) || discount <= 0 || discount > 1) {
+                this.showErrorMessage('折扣必须在0-1之间');
+                return false;
+            }
+
             return true;
         },
 
@@ -169,6 +184,7 @@ const promotionApp = Vue.createApp({
                 id: null,
                 bookId: '',
                 discountPrice: '',
+                discount: '',
                 startTime: '',
                 endTime: '',
                 description: ''
@@ -248,6 +264,21 @@ const promotionApp = Vue.createApp({
             } catch (error) {
                 console.error('日期格式化错误:', error);
                 return '';
+            }
+        },
+
+        formatDateTimeForBackend(dateTimeStr) {
+            if (!dateTimeStr) return '';
+            try {
+                const date = new Date(dateTimeStr);
+                if (isNaN(date.getTime())) {
+                    throw new Error('无效的日期时间');
+                }
+                // 转换为后端期望的格式：yyyy-MM-dd HH:mm:ss
+                return date.toISOString().replace('T', ' ').slice(0, 19);
+            } catch (error) {
+                console.error('日期格式化错误:', error);
+                throw error;
             }
         },
 
