@@ -131,8 +131,17 @@ const app = Vue.createApp({
 
             try {
                 const response = await fetch(`/books/delete/${id}`, {
-                    method: 'DELETE'
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
                 });
+
+                if (response.status === 401) {
+                    // token失效，跳转到登录页
+                    window.location.href = '/login.html';
+                    return;
+                }
 
                 if (!response.ok) {
                     throw new Error('删除失败');
@@ -175,4 +184,4 @@ if (token) {
     });
 }
 // 挂载Vue应用
-app.mount('#app'); 
+app.mount('#app');

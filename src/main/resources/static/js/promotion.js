@@ -2,155 +2,145 @@
 const promotionApp = Vue.createApp({
     data() {
         return {
-            // 促销列表
             promotions: [],
-            // 当前编辑的促销
-            currentPromotion: {},
-            // 图书列表
             books: [],
-            // 模态框标题
+            currentPromotion: {
+                id: null,
+                bookId: '',
+                discountPrice: '',
+                startTime: '',
+                endTime: '',
+                description: ''
+            },
             modalTitle: '添加促销',
-            // 模态框实例
-            promotionModal: null
+            promotionModal: null,
+            loading: false,
+            errorMessage: '',
+            successMessage: ''
+        }
+    },
+
+    computed: {
+        formattedPromotions() {
+            return this.promotions.map(promotion => ({
+                ...promotion,
+                formattedStartTime: this.formatDateTime(promotion.startTime),
+                formattedEndTime: this.formatDateTime(promotion.endTime),
+                bookName: this.getBookName(promotion.bookId)
+            }));
         }
     },
 
     mounted() {
-        // 检查是否已登录
-        const token = localStorage.getItem('token');
-        if (!token) {
-            window.location.href = '/login.html';
-            return;
-        }
-
-        // 初始化Bootstrap模态框
-        this.promotionModal = new bootstrap.Modal(document.getElementById('promotionModal'));
-        // 加载数据
-        this.loadPromotions();
-        this.loadBooks();
+        this.initializeApp();
     },
 
     methods: {
-        // 加载促销列表
+        async initializeApp() {
+            const token = this.checkAuthentication();
+            if (!token) return;
+
+            this.promotionModal = new bootstrap.Modal(document.getElementById('promotionModal'));
+            await Promise.all([
+                this.loadPromotions(),
+                this.loadBooks()
+            ]);
+        },
+
+        checkAuthentication() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/login.html';
+                return null;
+            }
+            return token;
+        },
+
         async loadPromotions() {
             try {
-                const response = await fetch('/promotions/list', {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
-                });
-
-                if (response.status === 401) {
-                    window.location.href = '/login.html';
-                    return;
-                }
-
-                this.promotions = await response.json();
+                this.loading = true;
+                const response = await this.fetchWithAuth('/promotions/list');
+                this.promotions = await this.handleResponse(response);
             } catch (error) {
-                console.error('加载促销列表失败:', error);
-                alert('加载促销列表失败');
+                this.handleError('加载促销列表失败', error);
+            } finally {
+                this.loading = false;
             }
         },
 
-        // 加载图书列表
         async loadBooks() {
             try {
-                const response = await fetch('/books/list', {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
-                });
-
-                if (response.status === 401) {
-                    window.location.href = '/login.html';
-                    return;
-                }
-
-                this.books = await response.json();
+                const response = await this.fetchWithAuth('/books/list');
+                this.books = await this.handleResponse(response);
             } catch (error) {
-                console.error('加载图书列表失败:', error);
-                alert('加载图书列表失败');
+                this.handleError('加载图书列表失败', error);
             }
         },
 
-        // 显示添加表单
         showAddForm() {
+            this.resetForm();
             this.modalTitle = '添加促销';
-            this.currentPromotion = {};
             this.promotionModal.show();
         },
 
-        // 显示编辑表单
         editPromotion(promotion) {
-            this.modalTitle = '编辑促销';
-            this.currentPromotion = { ...promotion };
-            this.promotionModal.show();
+            try {
+                this.modalTitle = '编辑促销';
+                this.currentPromotion = {
+                    ...promotion,
+                    startTime: this.formatDateTimeForInput(promotion.startTime),
+                    endTime: this.formatDateTimeForInput(promotion.endTime)
+                };
+                console.log('编辑的促销数据:', this.currentPromotion);
+                this.promotionModal.show();
+            } catch (error) {
+                this.handleError('准备编辑数据失败', error);
+            }
         },
 
-        // 保存促销
         async savePromotion() {
-            try {
-                // 验证表单
-                if (!this.validateForm()) {
-                    return;
-                }
+            if (!this.validateForm()) return;
 
-                const response = await fetch('/promotions/save', {
+            try {
+                this.loading = true;
+                const response = await this.fetchWithAuth('/promotions/save', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json;charset=UTF-8',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        'Content-Type': 'application/json;charset=UTF-8'
                     },
                     body: JSON.stringify(this.currentPromotion)
                 });
 
-                if (response.status === 401) {
-                    window.location.href = '/login.html';
-                    return;
-                }
-
-                if (!response.ok) {
-                    throw new Error(await response.text());
-                }
-
-                // 重新加载数据
+                await this.handleResponse(response);
+                this.showSuccessMessage('保存成功');
                 await this.loadPromotions();
-                // 关闭模态框
                 this.promotionModal.hide();
             } catch (error) {
-                console.error('保存促销失败:', error);
-                alert('保存促销失败: ' + error.message);
+                this.handleError('保存促销失败', error);
+            } finally {
+                this.loading = false;
             }
         },
 
-        // 删除促销
         async deletePromotion(id) {
-            if (!confirm('确定要删除这个促销活动吗？')) {
-                return;
-            }
+            if (!confirm('确定要删除这个促销活动吗？')) return;
 
             try {
-                const response = await fetch(`/promotions/delete/${id}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
+                this.loading = true;
+                const response = await this.fetchWithAuth(`/promotions/delete/${id}`, {
+                    method: 'DELETE'
                 });
 
-                if (response.status === 401) {
-                    window.location.href = '/login.html';
-                    return;
-                }
-
-                // 重新加载数据
+                await this.handleResponse(response);
+                this.showSuccessMessage('删除成功');
                 await this.loadPromotions();
             } catch (error) {
-                console.error('删除促销失败:', error);
-                alert('删除促销失败');
+                this.handleError('删除促销失败', error);
+            } finally {
+                this.loading = false;
             }
         },
 
-        // 验证表单
         validateForm() {
             const form = document.getElementById('promotionForm');
             if (!form.checkValidity()) {
@@ -158,32 +148,115 @@ const promotionApp = Vue.createApp({
                 return false;
             }
 
-            if (this.currentPromotion.startTime >= this.currentPromotion.endTime) {
-                alert('开始时间必须小于结束时间');
+            const startTime = new Date(this.currentPromotion.startTime);
+            const endTime = new Date(this.currentPromotion.endTime);
+            
+            if (startTime >= endTime) {
+                this.showErrorMessage('开始时间必须小于结束时间');
+                return false;
+            }
+
+            if (this.currentPromotion.discountPrice <= 0) {
+                this.showErrorMessage('促销价格必须大于0');
                 return false;
             }
 
             return true;
         },
 
-        // 格式化日期时间
-        formatDateTime(dateTimeLocal) {
-            if (!dateTimeLocal) return '';
-            const dt = new Date(dateTimeLocal);
-            return dt.getFullYear() +
-                   '-' + this.pad(dt.getMonth() + 1) +
-                   '-' + this.pad(dt.getDate()) +
-                   ' ' + this.pad(dt.getHours()) +
-                   ':' + this.pad(dt.getMinutes()) +
-                   ':' + this.pad(dt.getSeconds());
+        resetForm() {
+            this.currentPromotion = {
+                id: null,
+                bookId: '',
+                discountPrice: '',
+                startTime: '',
+                endTime: '',
+                description: ''
+            };
+            this.errorMessage = '';
+            this.successMessage = '';
         },
 
-        // 补零函数
-        pad(num) {
-            return String(num).padStart(2, '0');
+        // 工具方法
+        async fetchWithAuth(url, options = {}) {
+            const token = localStorage.getItem('token');
+            const headers = {
+                'Authorization': `Bearer ${token}`,
+                ...options.headers
+            };
+
+            const response = await fetch(url, { ...options, headers });
+            if (response.status === 401) {
+                window.location.href = '/login.html';
+                throw new Error('未授权访问');
+            }
+            return response;
+        },
+
+        async handleResponse(response) {
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(errorText || '请求失败');
+            }
+            return response.json();
+        },
+
+        handleError(message, error) {
+            console.error(message, error);
+            this.showErrorMessage(`${message}: ${error.message}`);
+        },
+
+        showErrorMessage(message) {
+            this.errorMessage = message;
+            this.successMessage = '';
+            setTimeout(() => this.errorMessage = '', 5000);
+        },
+
+        showSuccessMessage(message) {
+            this.successMessage = message;
+            this.errorMessage = '';
+            setTimeout(() => this.successMessage = '', 3000);
+        },
+
+        formatDateTime(dateTimeStr) {
+            if (!dateTimeStr) return '';
+            try {
+                const date = new Date(dateTimeStr);
+                return date.toLocaleString('zh-CN', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+            } catch (error) {
+                console.error('日期格式化错误:', error);
+                return dateTimeStr;
+            }
+        },
+
+        formatDateTimeForInput(dateTimeStr) {
+            if (!dateTimeStr) return '';
+            try {
+                const date = new Date(dateTimeStr);
+                if (isNaN(date.getTime())) {
+                    console.error('无效的日期时间:', dateTimeStr);
+                    return '';
+                }
+                return date.toISOString().slice(0, 16);
+            } catch (error) {
+                console.error('日期格式化错误:', error);
+                return '';
+            }
+        },
+
+        getBookName(bookId) {
+            const book = this.books.find(b => b.id === bookId);
+            return book ? book.name : '未知图书';
         }
     }
 });
 
 // 挂载Vue应用
-promotionApp.mount('#app'); 
+promotionApp.mount('#app');
