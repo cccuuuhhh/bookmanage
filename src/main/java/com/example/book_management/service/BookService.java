@@ -143,7 +143,7 @@ public class BookService extends ServiceImpl<BookMapper, Book> {
      * @param isbn     ISBN号，支持模糊查询
      * @return 符合条件的图书列表
      */
-    @Cacheable(value = "books", key = "#name + #author + #minPrice + #maxPrice + #isbn")
+//    @Cacheable(value = "books", key = "#name + #author + #minPrice + #maxPrice + #isbn")
     public List<Book> searchBooks(String name, String author, BigDecimal minPrice, BigDecimal maxPrice, String isbn) {
         LambdaQueryWrapper<Book> queryWrapper = new LambdaQueryWrapper<>();
 

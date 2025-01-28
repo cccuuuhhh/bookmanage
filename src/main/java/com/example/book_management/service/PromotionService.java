@@ -28,7 +28,7 @@ public class PromotionService extends ServiceImpl<PromotionMapper, Promotion> {
     @Autowired
     private BookService bookService;
     
-    @Cacheable(value = "promotions", key = "'all'")
+    @Cacheable(value = "promotions", key = "'all'", unless = "#result == null || #result.isEmpty()")
     public List<PromotionVO> listPromotions() {
         List<Promotion> promotions = list();
         return promotions.stream().map(promotion -> {
@@ -42,8 +42,7 @@ public class PromotionService extends ServiceImpl<PromotionMapper, Promotion> {
     }
     
     @Transactional(rollbackFor = Exception.class)
-    @CachePut(value = "promotion", key = "#promotion.id")
-    @CacheEvict(value = "promotions", allEntries = true)
+    @CacheEvict(value = {"promotion", "promotions"}, allEntries = true)
     public void savePromotion(Promotion promotion) {
         // 验证图书是否存在
         Book book = bookService.getById(promotion.getBookId());
@@ -53,8 +52,8 @@ public class PromotionService extends ServiceImpl<PromotionMapper, Promotion> {
         
         // 验证时间格式和逻辑
         try {
-            LocalDateTime startTime = LocalDateTime.parse(promotion.getStartTime(), DATE_PARSER);
-            LocalDateTime endTime = LocalDateTime.parse(promotion.getEndTime(), DATE_PARSER);
+            LocalDateTime startTime = LocalDateTime.parse(promotion.getStartTime(), DATE_FORMATTER);
+            LocalDateTime endTime = LocalDateTime.parse(promotion.getEndTime(), DATE_FORMATTER);
             
             if (startTime.isAfter(endTime)) {
                 throw new IllegalArgumentException("开始时间不能晚于结束时间");
@@ -83,7 +82,7 @@ public class PromotionService extends ServiceImpl<PromotionMapper, Promotion> {
      * @param currentTime 当前时间
      * @return 促销信息，如果没有则返回null
      */
-    @Cacheable(value = "promotion", key = "#bookId + ':' + #currentTime")
+    @Cacheable(value = "promotion", key = "#bookId + ':' + #currentTime", unless = "#result == null")
     public Promotion getCurrentPromotion(Long bookId, String currentTime) {
         return lambdaQuery()
             .eq(Promotion::getBookId, bookId)
