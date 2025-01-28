@@ -97,10 +97,17 @@ const app = Vue.createApp({
                 const response = await fetch('/books/save', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
                     },
                     body: JSON.stringify(this.currentBook)
                 });
+
+                if (response.status === 401) {
+                    // token失效，跳转到登录页
+                    window.location.href = '/login.html';
+                    return;
+                }
 
                 if (!response.ok) {
                     throw new Error('保存失败');

@@ -21,16 +21,11 @@ public class WebConfig implements WebMvcConfigurer {
                 .excludePathPatterns(
                         "/login.html",
                         "/api/login",
-                        "/js/login.js",
-                        "/js/axios.js",
-                        "/js/book.js",
-                        "/js/promotion.js",
-                        "/css/**",
                         "/js/**",
+                        "/css/**",
+                        "/images/**",
                         "/*.ico",
-                        "/error",
-                        "/index.html",
-                        "/promotion.html"
+                        "/error"
                 );
     }
 } 
